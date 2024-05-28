@@ -1,10 +1,5 @@
-import os
-os.environ["OTEL_METRICS_EXPORTER"] = "none"
-os.environ["OTEL_TRACES_EXPORTER"] = "none"
-# DO NOT REMOVE THIS IMPORT
-# It allows auto instrumentation for robot and pabot use cases
-import opentelemetry.instrumentation.auto_instrumentation.sitecustomize
 import functools
+import os
 from collections import Counter
 from itertools import groupby
 from urllib.parse import quote as quote
@@ -18,6 +13,8 @@ try:
 except ImportError:
     WebDriver = None
 
+os.environ["OTEL_METRICS_EXPORTER"] = "none"
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
 SL_TEST_LISTENER_TRACER = "sl-test-listener"
 tracer = trace.get_tracer(SL_TEST_LISTENER_TRACER)
 
@@ -204,7 +201,8 @@ def selenium_get_url(test_name, test_session_id):
                 script = 'const testStartEvent = new CustomEvent("set:baggage", {detail: { "x-sl-test-name": "%s", "x-sl-test-session-id": "%s" }});window.dispatchEvent(testStartEvent);' % (test_name, test_session_id)
                 self.execute_script(script)
                 return response
-            except:
+            except Exception as e:
+                print(f"{SEALIGHTS_LOG_TAG} Failed to set test name and session id: {e}")
                 return response
         return wrapper
     return inner
@@ -218,6 +216,7 @@ def selenium_close_quit(f):
             script = 'await window.$SealightsAgent.sendAllFootprints();'
             self.execute_script(script)
             return f(*args, **kwargs)
-        except:
+        except Exception as e:
+            print(f"{SEALIGHTS_LOG_TAG} Failed to send footprints: {e}")
             return f(*args, **kwargs)
     return wrapper
