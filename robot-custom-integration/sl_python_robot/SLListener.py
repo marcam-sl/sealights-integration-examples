@@ -1,17 +1,13 @@
 import functools
 import os
-
-os.environ["OTEL_METRICS_EXPORTER"] = "none"
-os.environ["OTEL_TRACES_EXPORTER"] = "none"
-# DO NOT REMOVE THIS IMPORT
-# It allows auto instrumentation for robot and pabot use cases
-import opentelemetry.instrumentation.auto_instrumentation.sitecustomize
 from urllib.parse import quote as quote
 import datetime
 import requests
 import jwt
 from opentelemetry import trace, context, baggage
 
+os.environ["OTEL_METRICS_EXPORTER"] = "none"
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
 try:
     from selenium.webdriver.remote.webdriver import WebDriver
 except ImportError:
@@ -78,7 +74,8 @@ class SLListener:
                                  headers=self.get_header())
 
         if not response.ok:
-            print(f'{SEALIGHTS_LOG_TAG} Failed to open Test Session (Error {response.status_code}), disabling Sealights Listener')
+            print(
+                f'{SEALIGHTS_LOG_TAG} Failed to open Test Session (Error {response.status_code}), disabling Sealights Listener')
         else:
             res = response.json()
             self.test_session_id = res["data"]["testSessionId"]
@@ -87,7 +84,8 @@ class SLListener:
     def get_excluded_tests(self):
         excluded_tests = []
         recommendations = requests.get(f'{self.get_session_url()}/exclude-tests', headers=self.get_header())
-        print(f'{SEALIGHTS_LOG_TAG} Retrieving Recommendations: {"OK" if recommendations.ok else f"Error {recommendations.status_code}"}')
+        print(
+            f'{SEALIGHTS_LOG_TAG} Retrieving Recommendations: {"OK" if recommendations.ok else f"Error {recommendations.status_code}"}')
         if recommendations.status_code == 200:
             excluded_tests = recommendations.json()["data"]
         print(f'{SEALIGHTS_LOG_TAG} {len(self.excluded_tests)} Skipped tests: {excluded_tests}')
@@ -176,12 +174,16 @@ def selenium_get_url(test_name, test_session_id):
             response = f(*args, **kwargs)
             try:
                 self = args[0]
-                script = 'const testStartEvent = new CustomEvent("set:baggage", {detail: { "x-sl-test-name": "%s", "x-sl-test-session-id": "%s" }});window.dispatchEvent(testStartEvent);' % (test_name, test_session_id)
+                script = 'const testStartEvent = new CustomEvent("set:baggage", {detail: { "x-sl-test-name": "%s", "x-sl-test-session-id": "%s" }});window.dispatchEvent(testStartEvent);' % (
+                test_name, test_session_id)
                 self.execute_script(script)
                 return response
-            except:
+            except Exception as e:
+                print(f"{SEALIGHTS_LOG_TAG} Failed to set test name and session id: {e}")
                 return response
+
         return wrapper
+
     return inner
 
 
@@ -193,6 +195,8 @@ def selenium_close_quit(f):
             script = 'await window.$SealightsAgent.sendAllFootprints();'
             self.execute_script(script)
             return f(*args, **kwargs)
-        except:
+        except Exception as e:
+            print(f"{SEALIGHTS_LOG_TAG} Failed to send footprints: {e}")
             return f(*args, **kwargs)
+
     return wrapper
